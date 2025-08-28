@@ -6,7 +6,7 @@ import {
   useDroppable,
 } from "@dnd-kit/core";
 import "./App.css";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Textarea } from "./components/textarea";
 import { Grip } from "lucide-react";
 import clsx from "clsx";
@@ -26,6 +26,24 @@ const NODES: Node[] = [
     variable: "USER_NAME",
   },
 ];
+
+const TOKEN_RE = /\{\{([A-Z0-9_]+)\}\}/g;
+
+function getUsedVariables(text: string): Set<string> {
+  const used = new Set<string>();
+  for (const m of text.matchAll(TOKEN_RE)) {
+    if (m[1]) used.add(m[1]);
+  }
+  return used;
+}
+
+function stripAllTokens(s: string): string {
+  const noTokens = s.replace(TOKEN_RE, "").trim();
+  return noTokens
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+}
 
 function NodeDraggableCard({ node }: { node: Node }) {
   const { attributes, listeners, setNodeRef, transform } = useDraggable({
@@ -87,9 +105,10 @@ function DroppableSlot({ index }: { index: number }) {
 function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [text, setText] = useState("Hello , I am texting you from ");
+  const usedVars = useMemo(() => getUsedVariables(text), [text]);
   return (
     <div className="p-10">
-      <h1>Drag and drop into textarea</h1>
+      <h1 className="text-xl font-semibold">Drag and drop into textarea</h1>
       <DndContext
         onDragStart={() => setIsDragging(true)}
         onDragCancel={() => setIsDragging(false)}
@@ -105,8 +124,9 @@ function App() {
 
           if (dropIndex == null) return;
 
-          const token = `{{${variable}}}`;
+          if (getUsedVariables(text).has(variable)) return;
 
+          const token = `{{${variable}}}`;
           setText((prev) => {
             const parts = prev.split(" ");
             const idx = Math.max(0, Math.min(dropIndex, parts.length));
@@ -135,10 +155,28 @@ function App() {
               onChange={(e) => setText(e.target.value)}
             />
           )}
+          <button
+            type="button"
+            onClick={() => setText((prev) => stripAllTokens(prev))}
+            disabled={usedVars.size === 0}
+            className={clsx(
+              "ml-auto rounded-lg border px-3 py-2 text-sm",
+              usedVars.size === 0
+                ? "opacity-50 cursor-not-allowed"
+                : "hover:bg-gray-100",
+            )}
+            title={
+              usedVars.size === 0
+                ? "No variables to remove"
+                : "Remove all variables from the text"
+            }
+          >
+            Reset variables
+          </button>
         </div>
         <div className="flex flex-col gap-5 mt-6">
           <h3>Nodes</h3>
-          {NODES.map((node) => (
+          {NODES.filter((n) => !usedVars.has(n.variable)).map((node) => (
             <NodeDraggableCard key={node.variable} node={node} />
           ))}
         </div>
