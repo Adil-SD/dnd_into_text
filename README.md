@@ -5,4 +5,6 @@ Built with [React](https://react.dev/), [TypeScript](https://www.typescriptlang.
 
 ---
 
+## 🎥 Demo
 
+![Demo](public/demo.gif)
